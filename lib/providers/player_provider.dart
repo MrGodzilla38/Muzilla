@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
+import '../audio/muzilla_audio_handler.dart';
 import 'settings_provider.dart';
 
 enum PlayerRepeatMode { off, all, one }
@@ -59,7 +61,8 @@ final playerProvider = NotifierProvider<PlayerNotifier, SongPlaybackState>(
   PlayerNotifier.new,
 );
 
-class PlayerNotifier extends Notifier<SongPlaybackState> {
+class PlayerNotifier extends Notifier<SongPlaybackState>
+    implements PlaybackController {
   static const Duration _positionStep = Duration(milliseconds: 200);
 
   /// Kesintisiz çalma kapalıyken şarkılar arasına giran sessizlik.
@@ -104,11 +107,14 @@ class PlayerNotifier extends Notifier<SongPlaybackState> {
   @override
   SongPlaybackState build() {
     ref.onDispose(_release);
+    ref.onDispose(_detachAudioHandler);
     ref.listen(
       settingsProvider,
       (SettingsState? previous, SettingsState next) =>
           _onSettingsChanged(previous, next),
     );
+    audioServiceHandler?.attach(this);
+    listenSelf(_onStateChangedForAudio);
     _attachStreams();
     _streamsReady = true;
     // Ayarlar oynatıcıdan önce yüklenmiş olabilir; kalan süreyi planla.
@@ -206,6 +212,7 @@ class PlayerNotifier extends Notifier<SongPlaybackState> {
     }
   }
 
+  @override
   Future<void> seek(Duration position) async {
     if (state.currentSong == null) {
       return;
@@ -226,6 +233,7 @@ class PlayerNotifier extends Notifier<SongPlaybackState> {
     _lastReportedPosition = target;
     _writePosition(target);
     _applyVolumeEnvelope();
+    _broadcastAudio(state);
   }
 
   Future<void> playNext() async {
@@ -263,14 +271,158 @@ class PlayerNotifier extends Notifier<SongPlaybackState> {
     await _player.setLoopMode(next);
   }
 
+  // ---------------------------------------------------------------------------
+  // Sistem kontrolleri (medya bildirimi, Bluetooth kulaklık, medya tuşları)
+  // ---------------------------------------------------------------------------
+
+  @override
+  Future<void> resume() async {
+    if (state.currentSong == null) {
+      return;
+    }
+    if (_player.processingState == ProcessingState.completed) {
+      await _player.seek(Duration.zero);
+    }
+    if (!_player.playing) {
+      await _player.play();
+    }
+  }
+
+  @override
+  Future<void> pause() => pausePlayback();
+
+  @override
+  Future<void> stop() => pausePlayback();
+
+  @override
+  Future<void> skipToNext() => playNext();
+
+  @override
+  Future<void> skipToPrevious() => playPrevious();
+
+  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) {
+    return _setShuffleEnabled(shuffleMode != AudioServiceShuffleMode.none);
+  }
+
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    final LoopMode mode = switch (repeatMode) {
+      AudioServiceRepeatMode.one => LoopMode.one,
+      AudioServiceRepeatMode.none => LoopMode.off,
+      AudioServiceRepeatMode.all || AudioServiceRepeatMode.group => LoopMode.all,
+    };
+    if (mode == _player.loopMode) {
+      return;
+    }
+    try {
+      await _player.setLoopMode(mode);
+    } catch (error) {
+      debugPrint('Muzilla: tekrar modu değiştirilemedi: $error');
+    }
+  }
+
+  /// Sistem medya oturumundaki durumu oynatıcının durumuyla eşitler.
+  void _broadcastAudio(SongPlaybackState snapshot) {
+    final handler = audioServiceHandler;
+    if (handler == null || _released || !_streamsReady) {
+      return;
+    }
+    handler.sync(
+      processingState: _audioProcessingState(),
+      playing: snapshot.isPlaying,
+      position: snapshot.position,
+      item: _mediaItemFor(snapshot),
+      repeatMode: _audioRepeatMode(snapshot.repeatMode),
+      shuffleMode: snapshot.shuffleEnabled
+          ? AudioServiceShuffleMode.all
+          : AudioServiceShuffleMode.none,
+    );
+  }
+
+  void _onStateChangedForAudio(
+    SongPlaybackState? previous,
+    SongPlaybackState next,
+  ) {
+    if (!_shouldBroadcastAudio(previous, next)) {
+      return;
+    }
+    _broadcastAudio(next);
+  }
+
+  /// Konum, sistem tarafında `updateTime` kullanılarak projekte edildiği için
+  /// saniyede birkaç kez tekrarlanan yayınlar gereksizdir.
+  bool _shouldBroadcastAudio(
+    SongPlaybackState? previous,
+    SongPlaybackState next,
+  ) {
+    if (previous == null) {
+      return true;
+    }
+    if (previous.isPlaying != next.isPlaying ||
+        previous.currentSong?.id != next.currentSong?.id ||
+        previous.currentIndex != next.currentIndex ||
+        previous.duration != next.duration ||
+        previous.shuffleEnabled != next.shuffleEnabled ||
+        previous.repeatMode != next.repeatMode) {
+      return true;
+    }
+    return previous.position != next.position && !next.isPlaying;
+  }
+
+  void _detachAudioHandler() {
+    audioServiceHandler?.detach(this);
+  }
+
+  MediaItem? _mediaItemFor(SongPlaybackState snapshot) {
+    final song = snapshot.currentSong;
+    if (song == null) {
+      return null;
+    }
+    final durationMs = snapshot.duration > Duration.zero
+        ? snapshot.duration.inMilliseconds
+        : (song.duration ?? 0);
+    return MediaItem(
+      id: song.id.toString(),
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      duration: durationMs > 0 ? Duration(milliseconds: durationMs) : null,
+      artUri: Uri.parse(
+        'content://media/external/audio/media/${song.id}/albumart',
+      ),
+    );
+  }
+
+  AudioProcessingState _audioProcessingState() {
+    return switch (_player.processingState) {
+      ProcessingState.idle => AudioProcessingState.idle,
+      ProcessingState.loading => AudioProcessingState.loading,
+      ProcessingState.buffering => AudioProcessingState.buffering,
+      ProcessingState.ready => AudioProcessingState.ready,
+      ProcessingState.completed => AudioProcessingState.completed,
+    };
+  }
+
+  AudioServiceRepeatMode _audioRepeatMode(PlayerRepeatMode mode) {
+    return switch (mode) {
+      PlayerRepeatMode.off => AudioServiceRepeatMode.none,
+      PlayerRepeatMode.all => AudioServiceRepeatMode.all,
+      PlayerRepeatMode.one => AudioServiceRepeatMode.one,
+    };
+  }
+
   void _attachStreams() {
     _subscriptions.addAll([
       _player.playingStream.listen(_writePlaying),
       _player.processingStateStream.listen((processingState) {
-        if (processingState != ProcessingState.completed) {
+        if (!_streamsReady) {
           return;
         }
-        _writePlaying(false);
+        if (processingState == ProcessingState.completed) {
+          _writePlaying(false);
+        }
+        _broadcastAudio(state);
       }),
       _player.positionStream.listen(_handlePosition),
       _player.durationStream.listen((duration) {

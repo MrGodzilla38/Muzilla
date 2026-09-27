@@ -1,5 +1,9 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 final _audioQuery = OnAudioQuery();
 
@@ -39,6 +43,8 @@ final songLibraryProvider = FutureProvider<SongLibraryResult>((ref) async {
     return const SongLibraryPermissionDenied();
   }
 
+  unawaited(_requestNotificationPermission());
+
   final songs = await _audioQuery.querySongs(
     sortType: SongSortType.TITLE,
     orderType: OrderType.ASC_OR_SMALLER,
@@ -54,3 +60,15 @@ final songLibraryProvider = FutureProvider<SongLibraryResult>((ref) async {
 
   return SongLibraryLoaded(filtered);
 });
+
+Future<void> _requestNotificationPermission() async {
+  try {
+    final status = await Permission.notification.status;
+    if (status.isGranted || status.isPermanentlyDenied) {
+      return;
+    }
+    await Permission.notification.request();
+  } catch (error) {
+    debugPrint('Muzilla: bildirim izni istenemedi: $error');
+  }
+}
