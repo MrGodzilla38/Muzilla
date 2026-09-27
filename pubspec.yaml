@@ -41,6 +41,7 @@ dependencies:
   google_fonts: ^8.2.1
   palette_generator: ^0.3.3+7
   permission_handler: ^13.0.2
+  lottie: ^3.6.1
 
 dev_dependencies:
   flutter_test:
@@ -52,6 +53,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_native_splash: ^2.4.8
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -67,6 +69,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/logo.png
+    - assets/animations/loading.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -93,3 +96,19 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Yerel (native) açılış ekranı — logonun lacivert paleti
+flutter_native_splash:
+  color: "#07102F"
+  color_dark: "#050B22"
+  image: assets/images/logo.png
+  image_dark: assets/images/logo.png
+  android_12:
+    color: "#07102F"
+    color_dark: "#050B22"
+    image: assets/images/logo.png
+    image_dark: assets/images/logo.png
+    icon_background_color: "#07102F"
+    icon_background_color_dark: "#050B22"
+  ios: true
+  web: false

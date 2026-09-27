@@ -9,6 +9,7 @@ import '../providers/song_library_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_metrics.dart';
 import '../theme/app_text_styles.dart';
+import '../widgets/song_tile.dart';
 
 /// Ekran görüntüsüyle birebir aynı ana sayfa düzeni.
 class HomeScreen extends ConsumerWidget {
@@ -61,9 +62,16 @@ class HomeScreen extends ConsumerWidget {
                     if (songs.isEmpty) {
                       return _HomeShell(
                         songs: songs,
-                        child: _EmptyMusicCard(
-                          onRefresh: () =>
-                              ref.invalidate(songLibraryProvider),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const _ShufflePlayRow(songs: []),
+                            const SizedBox(height: AppSpacing.lg + 4),
+                            _EmptyMusicCard(
+                              onRefresh: () =>
+                                  ref.invalidate(songLibraryProvider),
+                            ),
+                          ],
                         ),
                       );
                     }
@@ -157,7 +165,10 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
   @override
   Widget build(BuildContext context) {
-    final songs = widget.songs;
+    final songs = [...widget.songs]
+      ..sort(
+        (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+      );
     final favorites = songs.take(6).toList();
     final recentlyPlayed = songs.reversed.take(8).toList();
     final newest = songs.take(5).toList();
@@ -179,10 +190,12 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       sections.add(const SizedBox(height: AppSpacing.lg + 8));
     }
 
-    final showFavorites = _filterIndex == 0 || _filterIndex == 2;
+    // 0: Tümü, 1: Şarkılar, 2: Kütüphane (boş), 3: Sık Çalınanlar
+    final showFavorites = _filterIndex == 0 || _filterIndex == 3;
     final showRecent = _filterIndex == 0;
     final showWeekly = _filterIndex == 0;
-    final showNewest = _filterIndex == 0 || _filterIndex == 1;
+    final showNewest = _filterIndex == 0;
+    final showAllSongs = _filterIndex == 1;
 
     addSection(
       show: showFavorites,
@@ -202,6 +215,11 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       show: showNewest,
       title: 'Yeni Eklenenler',
       row: _FavoritesRow(songs: newest),
+    );
+    addSection(
+      show: showAllSongs,
+      title: 'Şarkılar',
+      row: _AllSongsList(songs: songs),
     );
 
     return _HomeShell(
@@ -284,7 +302,8 @@ class _CategoryTabs extends StatelessWidget {
 
   static const List<(String, String)> _tabs = [
     ('Tümü', 'Tüm Zamanlar'),
-    ('Yeni Eklenenler', 'Son eklenenler'),
+    ('Şarkılar', 'Alfabetik liste'),
+    ('Kütüphane', 'Senin koleksiyonun'),
     ('Sık Çalınanlar', 'Senin favorilerin'),
   ];
 
@@ -342,6 +361,21 @@ class _ShufflePlayRow extends ConsumerWidget {
   final List<SongModel> songs;
   const _ShufflePlayRow({required this.songs});
 
+  void _showNoMusicMessage(BuildContext context) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFF101A3A),
+          content: const Text(
+            'Müzik bulunamadı. Cihazında henüz çalınacak bir şarkı yok.',
+          ),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
@@ -351,6 +385,10 @@ class _ShufflePlayRow extends ConsumerWidget {
           Expanded(
             child: _ActionButton(
               onTap: () {
+                if (songs.isEmpty) {
+                  _showNoMusicMessage(context);
+                  return;
+                }
                 final shuffled = [...songs]..shuffle();
                 ref
                     .read(playerProvider.notifier)
@@ -371,6 +409,10 @@ class _ShufflePlayRow extends ConsumerWidget {
           Expanded(
             child: _ActionButton(
               onTap: () {
+                if (songs.isEmpty) {
+                  _showNoMusicMessage(context);
+                  return;
+                }
                 ref
                     .read(playerProvider.notifier)
                     .playSong(songs.first, queue: songs);
@@ -633,6 +675,46 @@ class _FavoritesRow extends ConsumerWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _AllSongsList extends ConsumerWidget {
+  final List<SongModel> songs;
+  const _AllSongsList({required this.songs});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentId = ref.watch(
+      playerProvider.select((state) => state.currentSong?.id),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.marginMobile),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0x8C101A3A),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+          itemCount: songs.length,
+          itemBuilder: (context, index) {
+            final song = songs[index];
+            return SongTile(
+              song: song,
+              isPlaying: currentId == song.id,
+              onTap: () {
+                ref.read(playerProvider.notifier).playSong(song, queue: songs);
+              },
+            );
+          },
+        ),
       ),
     );
   }
