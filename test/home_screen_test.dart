@@ -52,7 +52,8 @@ void main() {
     expect(find.text('Tümü'), findsOneWidget);
     expect(find.text('Şarkılar'), findsOneWidget);
     expect(find.text('Kütüphane'), findsOneWidget);
-    expect(find.text('Sık Çalınanlar'), findsOneWidget);
+    expect(find.text('Çalma listeleri'), findsOneWidget);
+    expect(find.text('Sık Çalınanlar'), findsNothing);
     expect(find.text('Henüz müzik yok'), findsOneWidget);
     expect(find.text('Yenile'), findsOneWidget);
     expect(find.text('Karıştır'), findsOneWidget);

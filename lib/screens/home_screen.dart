@@ -190,8 +190,8 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       sections.add(const SizedBox(height: AppSpacing.lg + 8));
     }
 
-    // 0: Tümü, 1: Şarkılar, 2: Kütüphane (boş), 3: Sık Çalınanlar
-    final showFavorites = _filterIndex == 0 || _filterIndex == 3;
+    // 0: Tümü, 1: Şarkılar, 2: Kütüphane (boş)
+    final showFavorites = _filterIndex == 0;
     final showRecent = _filterIndex == 0;
     final showWeekly = _filterIndex == 0;
     final showNewest = _filterIndex == 0;
@@ -301,10 +301,9 @@ class _CategoryTabs extends StatelessWidget {
   });
 
   static const List<(String, String)> _tabs = [
-    ('Tümü', 'Tüm Zamanlar'),
+    ('Tümü', ''),
     ('Şarkılar', 'Alfabetik liste'),
-    ('Kütüphane', 'Senin koleksiyonun'),
-    ('Sık Çalınanlar', 'Senin favorilerin'),
+    ('Kütüphane', 'Çalma listeleri'),
   ];
 
   @override
@@ -319,6 +318,7 @@ class _CategoryTabs extends StatelessWidget {
         itemBuilder: (context, index) {
           final (title, caption) = _tabs[index];
           final isActive = index == selected;
+          final label = index == 1 ? '${songs.length} şarkı' : caption;
           return InkWell(
             onTap: onChanged == null ? null : () => onChanged!(index),
             child: Padding(
@@ -338,15 +338,17 @@ class _CategoryTabs extends StatelessWidget {
                       fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    index == 0 ? '${songs.length} şarkı' : caption,
-                    style: AppTextStyles.labelSm.copyWith(
-                      color: isActive
-                          ? AppColors.secondary
-                          : AppColors.textMuted.withValues(alpha: 0.7),
+                  if (label.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: isActive
+                            ? AppColors.secondary
+                            : AppColors.textMuted.withValues(alpha: 0.7),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

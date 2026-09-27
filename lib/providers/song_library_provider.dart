@@ -19,6 +19,18 @@ class SongLibraryPermissionDenied extends SongLibraryResult {
   const SongLibraryPermissionDenied();
 }
 
+/// Only files living under the device's public Music folder count as music.
+/// Voice notes, WhatsApp audios, recordings, ringtones etc. live in other
+/// directories (Recordings, WhatsApp/, Notifications, ...) even when
+/// MediaStore reports them as audio.
+bool isInMusicFolder(String path) {
+  final segments = path.replaceAll('\\', '/').split('/')..removeWhere((s) => s.isEmpty);
+  return segments.any((s) {
+    final name = s.toLowerCase();
+    return name == 'music' || name == 'müzik';
+  });
+}
+
 final songLibraryProvider = FutureProvider<SongLibraryResult>((ref) async {
   final alreadyGranted = await _audioQuery.permissionsStatus();
   final granted = alreadyGranted || await _audioQuery.permissionsRequest();
@@ -34,8 +46,11 @@ final songLibraryProvider = FutureProvider<SongLibraryResult>((ref) async {
     ignoreCase: true,
   );
 
-  // Filter out very short clips (notification/ringtone noise, etc.)
-  final filtered = songs.where((s) => (s.duration ?? 0) > 20000).toList();
+  // Keep only real music: files inside the Music folder and long enough to
+  // be songs (drops notification/ringtone noise).
+  final filtered = songs
+      .where((s) => isInMusicFolder(s.data) && (s.duration ?? 0) > 20000)
+      .toList();
 
   return SongLibraryLoaded(filtered);
 });
