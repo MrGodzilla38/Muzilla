@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'theme/app_theme.dart';
-import 'screens/root_shell.dart';
+import 'screens/splash_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: MuzillaApp()));
@@ -16,7 +16,7 @@ class MuzillaApp extends StatelessWidget {
       title: 'Muzilla',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: const RootShell(),
+      home: const SplashScreen(),
     );
   }
 }

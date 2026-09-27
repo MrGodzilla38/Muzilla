@@ -97,18 +97,19 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
-# Yerel (native) açılış ekranı — logonun lacivert paleti
+# Yerel (native) açılış ekranı: sadece logoya uygun lacivert zemin.
+# Logo + yüklenme barı Flutter tarafındaki splash ekranında çizilir
+# (Android 12+ splash API'si animasyon/bar desteklemez), böylece
+# zemin rengi aynı kaldığı için tek bir açılış ekranı gibi akar.
 flutter_native_splash:
   color: "#07102F"
-  color_dark: "#050B22"
-  image: assets/images/logo.png
-  image_dark: assets/images/logo.png
+  color_dark: "#07102F"
+  image: tool/splash_transparent.png
+  image_dark: tool/splash_transparent.png
   android_12:
     color: "#07102F"
-    color_dark: "#050B22"
-    image: assets/images/logo.png
-    image_dark: assets/images/logo.png
-    icon_background_color: "#07102F"
-    icon_background_color_dark: "#050B22"
+    color_dark: "#07102F"
+    image: tool/splash_transparent.png
+    image_dark: tool/splash_transparent.png
   ios: true
   web: false
