@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
@@ -14,38 +16,76 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const Color background = Color(0xFF07102F);
-  static const Duration minSplashDuration = Duration(milliseconds: 2600);
 
-  late final AnimationController _controller;
+  /// Bar animasyonu hız çarpanı: 1 = orijinal hız, 2 = 2 kat hızlı.
+  static const double barSpeed = 3.5;
+
+  /// Animasyonda dolu barın (trim %50) ulaştığı kompozisyon oranı.
+  /// loading.json: trim 0. kareden 310. kareye kadar %0 -> %100,
+  /// kompozisyon toplamı 362 kare, yani yarı = 155/362.
+  static const double barHalfProgress = 155 / 362;
+
+  /// Lottie yüklenemezse uygulamanın yine de açılması için güvenlik süresi.
+  static const Duration fallbackDuration = Duration(seconds: 5);
+
+  late final AnimationController _logoController;
   late final Animation<double> _scale;
   late final Animation<double> _fade;
 
+  late final AnimationController _barController;
+  Timer? _navTimer;
   bool _navigated = false;
 
   @override
   void initState() {
     super.initState();
 
-    _controller = AnimationController(
+    _logoController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 550),
     );
     _scale = CurvedAnimation(
-      parent: _controller,
+      parent: _logoController,
       curve: Curves.easeOutBack,
     ).drive(Tween<double>(begin: 0.88, end: 1));
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _fade = CurvedAnimation(parent: _logoController, curve: Curves.easeOut);
 
-    _controller.forward();
-    Future<void>.delayed(minSplashDuration, _goToHome);
+    _barController = AnimationController(
+      vsync: this,
+      duration: fallbackDuration,
+    );
+
+    _logoController.forward();
+    _scheduleNavigation(fallbackDuration);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _navTimer?.cancel();
+    _logoController.dispose();
+    _barController.dispose();
     super.dispose();
+  }
+
+  void _scheduleNavigation(Duration delay) {
+    if (_navigated) return;
+    _navTimer?.cancel();
+    _navTimer = Timer(delay, _goToHome);
+  }
+
+  void _onBarLoaded(LottieComposition composition) {
+    final int scaledMs =
+        (composition.duration.inMilliseconds / barSpeed).round();
+
+    _barController.duration = Duration(milliseconds: scaledMs);
+    _barController.forward(from: 0);
+
+    // Uygulama bar tam ortaya (yüzde 50) geldiğinde açılsın.
+    _scheduleNavigation(
+      Duration(milliseconds: (scaledMs * barHalfProgress).round()),
+    );
   }
 
   void _goToHome() {
@@ -107,11 +147,12 @@ class _SplashScreenState extends State<SplashScreen>
                 child: SizedBox(
                   width: barWidth,
                   height: barWidth * 200 / 1080,
-                  child: Lottie.asset(
-                    'assets/animations/loading.json',
-                    fit: BoxFit.fill,
-                    repeat: true,
-                  ),
+                child: Lottie.asset(
+                  'assets/animations/loading.json',
+                  controller: _barController,
+                  onLoaded: _onBarLoaded,
+                  fit: BoxFit.fill,
+                ),
                 ),
               ),
             ),
