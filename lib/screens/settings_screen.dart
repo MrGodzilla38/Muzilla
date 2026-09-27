@@ -51,24 +51,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       _SwitchRow(
                         icon: Icons.shuffle_rounded,
                         label: 'Otomatik karıştır',
+                        subtitle:
+                            'Yeni liste başlarken karıştırmayı otomatik açar.',
                         value: settings.autoShuffle,
                         onChanged: notifier.setAutoShuffle,
                       ),
                       _SwitchRow(
                         icon: Icons.queue_music_rounded,
                         label: 'Kesintisiz çalma',
+                        subtitle:
+                            'Kapalıyken şarkılar arasına 1,5 sn sessizlik girer.',
                         value: settings.gapless,
                         onChanged: notifier.setGapless,
                       ),
-                      _SwitchRow(
-                        icon: Icons.blur_on_rounded,
-                        label: 'Geçiş efektleri',
-                        value: settings.crossfade,
-                        onChanged: notifier.setCrossfade,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _SwitchRow(
+                            icon: Icons.blur_on_rounded,
+                            label: 'Geçiş efektleri',
+                            subtitle:
+                                'Şarkı geçişlerinde sesi kısıp açarak '
+                                'yumuşak geçiş yapar.',
+                            value: settings.crossfade,
+                            onChanged: notifier.setCrossfade,
+                          ),
+                          if (settings.crossfade)
+                            _FadeDurationRow(
+                              seconds: settings.crossfadeSeconds,
+                              onChanged: notifier.setCrossfadeSeconds,
+                            ),
+                        ],
                       ),
                       _ValueRow(
                         icon: Icons.nightlight_round,
                         label: 'Uyku zamanlayıcı',
+                        subtitle:
+                            'Süre dolunca ya da şarkı bitince müziği duraklatır.',
                         value: _sleepLabel(settings),
                         onTap: _showSleepTimerDialog,
                       ),
@@ -81,6 +100,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       _ValueRow(
                         icon: Icons.graphic_eq_rounded,
                         label: 'Ekolayzır',
+                        subtitle:
+                            'Bas, tiz ve ses rengini preset ya da '
+                            'kaydırıcılarla ayarlarsın.',
                         value: settings.equalizerPresetLabel,
                         onTap: _showEqualizerSheet,
                       ),
@@ -238,6 +260,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     final bands = settings.bandsFor(bandCount);
 
                     return SingleChildScrollView(
+                      key: const ValueKey<String>('equalizerSheet'),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -470,11 +493,13 @@ class _SectionCard extends StatelessWidget {
 class _RowShell extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? subtitle;
   final Widget trailing;
   final VoidCallback? onTap;
   const _RowShell({
     required this.icon,
     required this.label,
+    this.subtitle,
     required this.trailing,
     this.onTap,
   });
@@ -491,10 +516,24 @@ class _RowShell extends StatelessWidget {
           Icon(icon, size: 20, color: AppColors.secondary),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Text(
-              label,
-              style: AppTextStyles.bodyMd
-                  .copyWith(color: AppColors.textHighContrast),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: AppTextStyles.bodyMd
+                      .copyWith(color: AppColors.textHighContrast),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    style: AppTextStyles.bodySm
+                        .copyWith(color: AppColors.textMuted),
+                  ),
+                ],
+              ],
             ),
           ),
           trailing,
@@ -508,14 +547,66 @@ class _RowShell extends StatelessWidget {
   }
 }
 
+/// Geçiş efekti açıkken görünen süre ayarı (saniye).
+class _FadeDurationRow extends StatelessWidget {
+  final double seconds;
+  final ValueChanged<double> onChanged;
+  const _FadeDurationRow({required this.seconds, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: AppSpacing.md + 36, // ikon sütununa hizalı
+        right: AppSpacing.md,
+        top: AppSpacing.xs,
+        bottom: AppSpacing.xs,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Geçiş süresi',
+                  style: AppTextStyles.bodyMd
+                      .copyWith(color: AppColors.textHighContrast),
+                ),
+              ),
+              Text(
+                '${seconds.toStringAsFixed(1).replaceAll('.', ',')} sn',
+                style: AppTextStyles.bodySm
+                    .copyWith(color: AppColors.textMuted),
+              ),
+            ],
+          ),
+          Slider(
+            value: seconds,
+            min: minCrossfadeSeconds,
+            max: maxCrossfadeSeconds,
+            divisions:
+                ((maxCrossfadeSeconds - minCrossfadeSeconds) / 0.5).round(),
+            activeColor: AppColors.secondary,
+            inactiveColor: AppColors.surfaceContainerHigh,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SwitchRow extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
   const _SwitchRow({
     required this.icon,
     required this.label,
+    this.subtitle,
     required this.value,
     required this.onChanged,
   });
@@ -525,6 +616,7 @@ class _SwitchRow extends StatelessWidget {
     return _RowShell(
       icon: icon,
       label: label,
+      subtitle: subtitle,
       trailing: Switch(
         value: value,
         onChanged: onChanged,
@@ -540,11 +632,13 @@ class _SwitchRow extends StatelessWidget {
 class _ValueRow extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? subtitle;
   final String value;
   final VoidCallback? onTap;
   const _ValueRow({
     required this.icon,
     required this.label,
+    this.subtitle,
     required this.value,
     this.onTap,
   });
@@ -554,6 +648,7 @@ class _ValueRow extends StatelessWidget {
     return _RowShell(
       icon: icon,
       label: label,
+      subtitle: subtitle,
       onTap: onTap,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

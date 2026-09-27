@@ -123,6 +123,30 @@ void main() {
     expect(state.sleepActive, isFalse);
   });
 
+  test('geçiş süresi ayarı kalıcıdır ve sınırlarda kalır', () async {
+    final first = ProviderContainer.test();
+    final notifier = first.read(settingsProvider.notifier);
+
+    await notifier.setCrossfadeSeconds(3.5);
+    expect(first.read(settingsProvider).crossfadeSeconds, 3.5);
+
+    final second = ProviderContainer.test();
+    final restored =
+        await _waitFor(second, (s) => s.crossfadeSeconds == 3.5);
+    expect(restored.crossfadeSeconds, 3.5);
+
+    await notifier.setCrossfadeSeconds(99);
+    expect(
+      first.read(settingsProvider).crossfadeSeconds,
+      maxCrossfadeSeconds,
+    );
+    await notifier.setCrossfadeSeconds(0.1);
+    expect(
+      first.read(settingsProvider).crossfadeSeconds,
+      minCrossfadeSeconds,
+    );
+  });
+
   test('ekolayzır preset seçimi kalıcıdır', () async {
     final first = ProviderContainer.test();
     await first.read(settingsProvider.notifier).setEqualizerPreset('rock');

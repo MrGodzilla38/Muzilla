@@ -19,6 +19,10 @@ enum SleepTimerMode {
 /// Kullanıcının kaydırıcılarla oluşturduğu özel preset kimliği.
 const String customEqualizerPresetId = 'custom';
 
+/// Geçiş efekti süresi için izin verilen aralık (saniye).
+const double minCrossfadeSeconds = 0.5;
+const double maxCrossfadeSeconds = 5.0;
+
 /// Ekolayzır preset'i: `anchors`, bas->tiz yönünde normalize (-1..1) kazanç
 /// hedefleridir. Cihazın bant sayısı farklı olsa da preset bu hedeflerden
 /// örneklendirilerek uygulanır.
@@ -114,6 +118,7 @@ class SettingsState {
     this.autoShuffle = false,
     this.gapless = true,
     this.crossfade = true,
+    this.crossfadeSeconds = 1.5,
     this.sleepMode = SleepTimerMode.off,
     this.sleepEndsAt,
     this.sleepRemaining = Duration.zero,
@@ -130,6 +135,9 @@ class SettingsState {
 
   /// Şarkı geçişlerinde açılış/kapanış solması.
   final bool crossfade;
+
+  /// Geçiş efektinin süresi (saniye); açılış ve kapanış solması için.
+  final double crossfadeSeconds;
 
   final SleepTimerMode sleepMode;
 
@@ -153,6 +161,7 @@ class SettingsState {
     bool? autoShuffle,
     bool? gapless,
     bool? crossfade,
+    double? crossfadeSeconds,
     SleepTimerMode? sleepMode,
     Object? sleepEndsAt = _unset,
     Duration? sleepRemaining,
@@ -164,6 +173,7 @@ class SettingsState {
       autoShuffle: autoShuffle ?? this.autoShuffle,
       gapless: gapless ?? this.gapless,
       crossfade: crossfade ?? this.crossfade,
+      crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
       sleepMode: sleepMode ?? this.sleepMode,
       sleepEndsAt: identical(sleepEndsAt, _unset)
           ? this.sleepEndsAt
@@ -200,6 +210,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   static const String _keyAutoShuffle = 'settings.auto_shuffle';
   static const String _keyGapless = 'settings.gapless';
   static const String _keyCrossfade = 'settings.crossfade';
+  static const String _keyCrossfadeSeconds = 'settings.crossfade_seconds';
   static const String _keySleepMode = 'settings.sleep_mode';
   static const String _keySleepEndsAt = 'settings.sleep_ends_at';
   static const String _keySleepMinutes = 'settings.sleep_minutes';
@@ -258,6 +269,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
         autoShuffle: prefs.getBool(_keyAutoShuffle) ?? false,
         gapless: prefs.getBool(_keyGapless) ?? true,
         crossfade: prefs.getBool(_keyCrossfade) ?? true,
+        crossfadeSeconds: _readCrossfadeSeconds(prefs),
         sleepMode: sleepMode,
         sleepEndsAt: sleepEndsAt,
         sleepRemaining: sleepRemaining,
@@ -282,6 +294,17 @@ class SettingsNotifier extends Notifier<SettingsState> {
     return raw.map(double.parse).toList(growable: false);
   }
 
+  double _readCrossfadeSeconds(SharedPreferences prefs) {
+    final raw = prefs.getDouble(_keyCrossfadeSeconds) ?? 1.5;
+    if (raw < minCrossfadeSeconds) {
+      return minCrossfadeSeconds;
+    }
+    if (raw > maxCrossfadeSeconds) {
+      return maxCrossfadeSeconds;
+    }
+    return raw;
+  }
+
   Future<void> setAutoShuffle(bool value) async {
     await _ensureRestored();
     state = state.copyWith(autoShuffle: value);
@@ -298,6 +321,19 @@ class SettingsNotifier extends Notifier<SettingsState> {
     await _ensureRestored();
     state = state.copyWith(crossfade: value);
     await _prefs?.setBool(_keyCrossfade, value);
+  }
+
+  /// Geçiş efekti süresini (saniye) ayarlar.
+  Future<void> setCrossfadeSeconds(double seconds) async {
+    await _ensureRestored();
+    var value = seconds;
+    if (value < minCrossfadeSeconds) {
+      value = minCrossfadeSeconds;
+    } else if (value > maxCrossfadeSeconds) {
+      value = maxCrossfadeSeconds;
+    }
+    state = state.copyWith(crossfadeSeconds: value);
+    await _prefs?.setDouble(_keyCrossfadeSeconds, value);
   }
 
   /// Süreli uyku zamanlayıcıyı başlatır.

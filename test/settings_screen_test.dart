@@ -87,14 +87,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Ekolayzır'), findsNWidgets(2)); // satır + sayfa başlığı
-    expect(find.byType(Slider), findsNWidgets(5));
+
+    final sheet = find.byKey(const ValueKey<String>('equalizerSheet'));
+    final sheetSliders =
+        find.descendant(of: sheet, matching: find.byType(Slider));
+    expect(sheetSliders, findsNWidgets(5));
 
     await tester.tap(find.text('Rock'));
     await tester.pumpAndSettle();
     expect(container.read(settingsProvider).equalizerPresetId, 'rock');
 
     // Kaydırıcıyı oynatınca "Özel" presetine geçer.
-    await tester.drag(find.byType(Slider).first, const Offset(60, 0));
+    await tester.drag(sheetSliders.first, const Offset(60, 0));
     await tester.pumpAndSettle();
     expect(container.read(settingsProvider).equalizerPresetId,
         customEqualizerPresetId);
@@ -105,11 +109,83 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('geçiş süresi barı yalnızca efekt açıkken görünür',
+      (tester) async {
+    await _pumpSettings(tester);
+    final container = await _container(tester);
+
+    expect(container.read(settingsProvider).crossfadeSeconds, 1.5);
+    expect(find.text('Geçiş süresi'), findsOneWidget);
+    expect(find.text('1,5 sn'), findsOneWidget);
+
+    final slider = find.descendant(
+      of: find.byType(SettingsScreen),
+      matching: find.byType(Slider),
+    );
+    expect(slider, findsOneWidget);
+
+    await tester.drag(slider, const Offset(300, 0));
+    await tester.pumpAndSettle();
+    expect(
+      container.read(settingsProvider).crossfadeSeconds,
+      greaterThan(1.5),
+    );
+    expect(find.text('Geçiş süresi'), findsOneWidget);
+
+    // Efekt kapatılınca süre barı kaybolur.
+    await tester.tap(find.byType(Switch).at(2));
+    await tester.pumpAndSettle();
+    expect(container.read(settingsProvider).crossfade, isFalse);
+    expect(find.text('Geçiş süresi'), findsNothing);
+    expect(slider, findsNothing);
+
+    // Yeniden açılınca geri gelir ve seçim korunur.
+    final savedSeconds = container.read(settingsProvider).crossfadeSeconds;
+    await tester.tap(find.byType(Switch).at(2));
+    await tester.pumpAndSettle();
+    expect(find.text('Geçiş süresi'), findsOneWidget);
+    expect(container.read(settingsProvider).crossfadeSeconds, savedSeconds);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('her ayarın altında açıklama metni var', (tester) async {
+    await _pumpSettings(tester);
+
+    expect(
+      find.text('Yeni liste başlarken karıştırmayı otomatik açar.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Kapalıyken şarkılar arasına 1,5 sn sessizlik girer.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Şarkı geçişlerinde sesi kısıp açarak yumuşak geçiş yapar.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Süre dolunca ya da şarkı bitince müziği duraklatır.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Bas, tiz ve ses rengini preset ya da kaydırıcılarla ayarlarsın.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('kalite satırı kaldırıldı, hakkında bölümü duruyor',
       (tester) async {
     await _pumpSettings(tester);
 
     expect(find.text('Çalma kalitesi'), findsNothing);
+
+    // Açıklamalar yüzünden bölüm ekranın altına düştü; oraya kaydır.
+    await tester.scrollUntilVisible(
+      find.text('HAKKINDA'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('HAKKINDA'), findsOneWidget);
     expect(find.text('Muzilla'), findsOneWidget);
     expect(find.text('1.0.0'), findsOneWidget);

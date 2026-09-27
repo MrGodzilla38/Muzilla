@@ -65,12 +65,6 @@ class PlayerNotifier extends Notifier<SongPlaybackState> {
   /// Kesintisiz çalma kapalıyken şarkılar arasına giran sessizlik.
   static const Duration _gapDuration = Duration(milliseconds: 1500);
 
-  /// Geçiş efektleri: açılış solması.
-  static const Duration _fadeInDuration = Duration(milliseconds: 1500);
-
-  /// Geçiş efektleri: kapanış solması.
-  static const Duration _fadeOutDuration = Duration(milliseconds: 2000);
-
   /// Elle yapılan ileri/geri geçişlerin hemen ardından gelen olayların
   /// "otomatik geçiş" sanılmasını engeller.
   static const Duration _manualTransitionWindow = Duration(milliseconds: 800);
@@ -363,7 +357,8 @@ class PlayerNotifier extends Notifier<SongPlaybackState> {
       unawaited(_setShuffleEnabled(next.autoShuffle));
     }
     if (next.gapless != previous.gapless ||
-        next.crossfade != previous.crossfade) {
+        next.crossfade != previous.crossfade ||
+        next.crossfadeSeconds != previous.crossfadeSeconds) {
       _applyVolumeEnvelope();
     }
     if (next.sleepEndsAt != previous.sleepEndsAt ||
@@ -407,20 +402,21 @@ class PlayerNotifier extends Notifier<SongPlaybackState> {
     }
 
     if (settings.crossfade && duration > Duration.zero) {
+      final fadeMs = (settings.crossfadeSeconds * 1000).round();
       final audiblePosition =
           position - (gapActive ? _gapDuration : Duration.zero);
       var fadeIn = 1.0;
-      if (audiblePosition < _fadeInDuration) {
+      if (audiblePosition.inMilliseconds < fadeMs) {
         fadeIn = audiblePosition <= Duration.zero
             ? 0.0
-            : audiblePosition.inMilliseconds / _fadeInDuration.inMilliseconds;
+            : audiblePosition.inMilliseconds / fadeMs;
       }
       final remaining = duration - position;
       var fadeOut = 1.0;
-      if (remaining < _fadeOutDuration) {
+      if (remaining.inMilliseconds < fadeMs) {
         fadeOut = remaining <= Duration.zero
             ? 0.0
-            : remaining.inMilliseconds / _fadeOutDuration.inMilliseconds;
+            : remaining.inMilliseconds / fadeMs;
       }
       volume *= math.min(fadeIn, fadeOut);
     }
